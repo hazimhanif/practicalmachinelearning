@@ -1,0 +1,118 @@
+---
+title: "Practical ML Final Project"
+author: "Badrul Anuar"
+date: "1/24/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(100)
+library(caret)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(repmis)
+```
+
+# Introduction
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+In this project, our goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data Source
+
+* The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+* The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Fetching Data
+
+```{r fetchData, echo=TRUE}
+# import the data from the URLs
+trainurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- source_data(trainurl, na.strings = c("NA", "#DIV/0!", ""), header = TRUE)
+testing <- source_data(testurl, na.strings = c("NA", "#DIV/0!", ""), header = TRUE)
+```
+
+The training dataset has 19622 observations and 160 variables, and the testing data set contains 20 observations and the same variables as the training set.
+
+## Data Cleaning and Preprocessing
+
+The data which has any missing values are removed from the training and the testing set.
+First, we remove the first seven features because it is irrelevant for the prediction.
+
+```{r removeSeven, echo=TRUE}
+trainData <- training[, -c(1:7)]
+testData <- testing[, -c(1:7)]
+trainData<-trainData[, colSums(is.na(trainData)) == 0]
+testData<-testData[, colSums(is.na(testData)) == 0]
+```
+
+
+## Data splitting
+
+Before we proceed to model creation and prediction, we need to split the 'train' dataset into 2 which are the real training set and the validation set. This is to compute the 'out-of-sample' error. For the data splitting, we use a splitting ratio of 70% for training and 30% validation set.
+
+```{r split, echo=TRUE}
+set.seed(7826) 
+inTrain <- createDataPartition(trainData$classe, p = 0.7, list = FALSE)
+train <- trainData[inTrain, ]
+valid <- trainData[-inTrain, ]
+```
+
+## Algorithms & Method
+
+* In this project, we will apply two machine learning algorithms namely Classification Trees and Random Forest. With the application of these 2 machine learning algorithms, the comparison of the performance will be shown.
+* As for the training method, we will use 5-fold Cross-Validation (CV) method. 
+
+## Training using Classification Tree
+
+
+```{r trainCT, echo=TRUE}
+control <- trainControl(method = "cv", number = 5)
+fit_rpart <- train(classe ~ ., data = train, method = "rpart", trControl = control)
+print(fit_rpart, digits = 4)
+fancyRpartPlot(fit_rpart$finalModel)
+```
+
+The model has been created by CV method using the 'train' data. Now, we will predict by using the 'valid' dataset.
+
+```{r predCT, echo=TRUE}
+predict_rpart <- predict(fit_rpart, valid)
+(conf_rpart <- confusionMatrix(valid$classe, predict_rpart))
+```
+
+From the confusion matrix and the results, the accuracy rate is 0.5004. The out-of-sample error rate is 0.4996.
+
+## Training using Random Forest
+
+```{r trainRF, echo=TRUE}
+fit_rf <- train(classe ~ ., data = train, method = "rf", 
+                   trControl = control)
+print(fit_rf, digits = 4)
+```
+
+The model has been created by CV method using the 'train' data. Now, we will predict by using the 'valid' dataset.
+
+```{r predRF, echo=TRUE}
+predict_rf <- predict(fit_rf, valid)
+(conf_rf <- confusionMatrix(valid$classe, predict_rf))
+```
+The accuracy rate is 0.9941, and so the out-of-sample error rate is 0.0059. Using Random Forest is better than using Classification Tree.
+
+## Prediction on Testing Dataset
+
+Finally, we will perform prediction by using the chosen prediction model which is the Random Forest model.
+
+```{r finalPred, echo=TRUE}
+predict_final <- predict(fit_rf, testData)
+predict_final
+```
